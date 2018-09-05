@@ -21,64 +21,41 @@
 #include <memory>
 
 // user include files
-#include "FWCore/Framework/interface/Frameworkfwd.h"
-#include "FWCore/Framework/interface/one/EDAnalyzer.h"
-
-#include "FWCore/Framework/interface/Event.h"
-#include "FWCore/Framework/interface/MakerMacros.h"
-
-#include "FWCore/Framework/interface/EventSetup.h"
-#include "FWCore/Framework/interface/ESHandle.h"
-#include "FWCore/ParameterSet/interface/ParameterSet.h"
-
-
+#include "CommonTools/UtilAlgos/interface/TFileService.h"
 #include "DataFormats/Common/interface/View.h"
-#include "DataFormats/TrackReco/interface/TrackFwd.h"
-#include "DataFormats/TrackReco/interface/Track.h"
 #include "DataFormats/TrackCandidate/interface/TrackCandidateCollection.h"
+#include "DataFormats/TrackReco/interface/Track.h"
+#include "DataFormats/TrackReco/interface/TrackFwd.h"
+#include "DataFormats/TrackerCommon/interface/TrackerTopology.h"
+#include "DataFormats/TrackerRecHit2D/interface/SiStripRecHit1D.h"
+#include "DataFormats/TrackerRecHit2D/interface/SiStripRecHit2D.h"
 #include "DataFormats/TrackingRecHit/interface/InvalidTrackingRecHit.h"
-
+#include "FWCore/Framework/interface/ESHandle.h"
+#include "FWCore/Framework/interface/Event.h"
+#include "FWCore/Framework/interface/EventSetup.h"
+#include "FWCore/Framework/interface/Frameworkfwd.h"
+#include "FWCore/Framework/interface/MakerMacros.h"
+#include "FWCore/Framework/interface/one/EDAnalyzer.h"
+#include "FWCore/ParameterSet/interface/ParameterSet.h"
+#include "FWCore/ServiceRegistry/interface/Service.h" 
 #include "Geometry/Records/interface/TrackerDigiGeometryRecord.h"
+#include "Geometry/TrackerGeometryBuilder/interface/PixelGeomDetUnit.h"
 #include "Geometry/TrackerGeometryBuilder/interface/TrackerGeometry.h"
 #include "MagneticField/Engine/interface/MagneticField.h"
 #include "MagneticField/Records/interface/IdealMagneticFieldRecord.h"
-#include "TrackingTools/TrajectoryState/interface/TrajectoryStateTransform.h"
-#include "TrackingTools/TrajectoryState/interface/TrajectoryStateOnSurface.h"
-
+#include "RecoLocalTracker/ClusterParameterEstimator/interface/StripClusterParameterEstimator.h"
+#include "RecoLocalTracker/SiStripClusterizer/interface/SiStripClusterInfo.h"
+#include "RecoTracker/TransientTrackingRecHit/interface/TkTransientTrackingRecHitBuilder.h"
+#include "TrackingTools/PatternTools/interface/TrajTrackAssociation.h"
+#include "TrackingTools/PatternTools/interface/Trajectory.h"
+#include "TrackingTools/Records/interface/TrackingComponentsRecord.h"
 #include "TrackingTools/Records/interface/TransientRecHitRecord.h"
+#include "TrackingTools/Records/interface/TransientTrackRecord.h"
+#include "TrackingTools/TrajectoryState/interface/TrajectoryStateOnSurface.h"
+#include "TrackingTools/TrajectoryState/interface/TrajectoryStateTransform.h"
+#include "TrackingTools/TransientTrack/interface/TransientTrackBuilder.h"
 #include "TrackingTools/TransientTrackingRecHit/interface/TransientTrackingRecHit.h"
 #include "TrackingTools/TransientTrackingRecHit/interface/TransientTrackingRecHitBuilder.h"
-
-#include "RecoTracker/TransientTrackingRecHit/interface/TkTransientTrackingRecHitBuilder.h"
-
-#include "TrackingTools/TransientTrack/interface/TransientTrackBuilder.h"
-#include "TrackingTools/Records/interface/TrackingComponentsRecord.h"
-
-#include "TrackingTools/Records/interface/TransientTrackRecord.h"
-#include "DataFormats/TrackerRecHit2D/interface/SiStripRecHit1D.h"
-#include "DataFormats/TrackerRecHit2D/interface/SiStripRecHit2D.h"
-
-
-#include "TrackingTools/PatternTools/interface/Trajectory.h"
-#include "TrackingTools/PatternTools/interface/TrajTrackAssociation.h"
-
-
-#include "RecoLocalTracker/SiStripClusterizer/interface/SiStripClusterInfo.h"
-
-#include "RecoLocalTracker/ClusterParameterEstimator/interface/StripClusterParameterEstimator.h"
-
-
-/*#include "DataFormats/SiStripDetId/interface/TIBDetId.h"
-#include "DataFormats/SiStripDetId/interface/TIDDetId.h"
-#include "DataFormats/SiStripDetId/interface/TOBDetId.h"
-#include "DataFormats/SiStripDetId/interface/TECDetId.h"*/
-
-#include "DataFormats/TrackerCommon/interface/TrackerTopology.h"
-
-#include "Geometry/TrackerGeometryBuilder/interface/PixelGeomDetUnit.h"
-
-#include "FWCore/ServiceRegistry/interface/Service.h" 
-#include "CommonTools/UtilAlgos/interface/TFileService.h"
 #include <TTree.h>
 
 //
@@ -98,11 +75,11 @@ public:
   
   static void fillDescriptions(edm::ConfigurationDescriptions& descriptions);
   
-  
 private:
   virtual void beginJob() override;
   virtual void analyze(const edm::Event&, const edm::EventSetup&) override;
   virtual void endJob() override;
+  double thickness(DetId id);
   
   // ----------member data ---------------------------
   
@@ -112,16 +89,16 @@ private:
   const edm::EDGetTokenT<edm::View<reco::Track> > trackSrc_;
   const edm::EDGetTokenT<std::vector<Trajectory> > trajSrc_;
   const edm::EDGetTokenT<TrajTrackAssociationCollection> trajTrackAssociationSrc_;
-
- 
   TTree *smalltree;
   
   edm::Service<TFileService> fs;
 
- 
   std::string ttrhbuilder_; 
   
   edm::ESHandle<MagneticField> bField;
+
+  const TrackerGeometry* theTrackerGeometry;
+  std::map<DetId,double> m_thicknessMap;
   
   //-----------------------
   //fill the tree per track
@@ -141,6 +118,7 @@ private:
   int tree_Cluster_LayerNbr[10000]; 
   int tree_Cluster_WheelSide[10000]; 
   double tree_Cluster_charge[10000];
+  double tree_Cluster_path[10000];
   double tree_Cluster_tsosx[10000];
   double tree_Cluster_tsosy[10000];
   double tree_Cluster_SoverN[10000];
@@ -174,10 +152,7 @@ private:
   float	tree_Strips_stripGains[10000] ;
   float	tree_Strips_stripNoises[10000];
   bool 	tree_Strips_stripQualitiesBad[10000] ;
-  
-  
-  
-  
+    
 };
 
 //
@@ -204,9 +179,7 @@ TrackerCluster::TrackerCluster(const edm::ParameterSet& iConfig):
   
   smalltree = fs->make<TTree>("ttree", "ttree");
   
-  
-  
-   //-----------------------
+  //-----------------------
   //fill the tree per track
   smalltree->Branch("tree_track_nclusters", &tree_track_nclusters, "tree_track_nclusters/I" );
   smalltree->Branch("tree_track_pt",    &tree_track_pt,    "tree_track_pt/D" );
@@ -226,6 +199,7 @@ TrackerCluster::TrackerCluster(const edm::ParameterSet& iConfig):
  
   
   smalltree->Branch("tree_Cluster_charge",     tree_Cluster_charge,    "tree_Cluster_charge[tree_track_nclusters]/D"     );
+  smalltree->Branch("tree_Cluster_path",       tree_Cluster_path,      "tree_Cluster_path[tree_track_nclusters]/D"       );
   smalltree->Branch("tree_Cluster_tsosx",      tree_Cluster_tsosx,     "tree_Cluster_tsosx[tree_track_nclusters]/D"      );
   smalltree->Branch("tree_Cluster_tsosy",      tree_Cluster_tsosy,     "tree_Cluster_tsosy[tree_track_nclusters]/D"      );
   smalltree->Branch("tree_Cluster_SoverN",     tree_Cluster_SoverN,    "tree_Cluster_SoverN[tree_track_nclusters]/D"     );
@@ -275,8 +249,6 @@ TrackerCluster::TrackerCluster(const edm::ParameterSet& iConfig):
   tree_track_nhits = -1;
   tree_track_NChi2 = -1;
   tree_Strips_nstrip =0;
-  
-  
 }
 
 
@@ -304,7 +276,7 @@ TrackerCluster::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 
 
   runNumber = iEvent.id().run();
-  std::cout << "runNumber = " << runNumber << std::endl;
+  edm::LogInfo("TrackCluster") << "runNumber = " << runNumber << std::endl;
   eventNumber = iEvent.id().event();
   lumiBlock = iEvent.luminosityBlock();
  
@@ -314,16 +286,13 @@ TrackerCluster::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
   
   edm::ESHandle<TrackerGeometry> TG;
   iSetup.get<TrackerDigiGeometryRecord>().get(TG);
-  const TrackerGeometry* theTrackerGeometry = TG.product();
+  theTrackerGeometry = TG.product();
    
   edm::ESHandle<TransientTrackBuilder> theB;
   iSetup.get<TransientTrackRecord>().get( "TransientTrackBuilder", theB );
  
   edm::ESHandle<TransientTrackingRecHitBuilder> theTrackerRecHitBuilder;
   iSetup.get<TransientRecHitRecord>().get(ttrhbuilder_,theTrackerRecHitBuilder);
-  
-  
-
   
   //get tracker geometry
   edm::ESHandle<TrackerGeometry> pDD;
@@ -334,12 +303,10 @@ TrackerCluster::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
   iEvent.getByToken(trajSrc_, TrajectoryCollection);
   edm::Handle<TrajTrackAssociationCollection> trajTrackAssociationHandle;
   iEvent.getByToken(trajTrackAssociationSrc_, trajTrackAssociationHandle);
-  
-  
+ 
   edm::ESHandle<StripClusterParameterEstimator> parameterestimator;
   iSetup.get<TkStripCPERecord>().get("StripCPEfromTrackAngle", parameterestimator); 
   const StripClusterParameterEstimator &stripcpe(*parameterestimator);
-  
   
   iSetup.get<IdealMagneticFieldRecord>().get(bField); 
 
@@ -347,8 +314,7 @@ TrackerCluster::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
   iSetup.get<TrackerTopologyRcd>().get(tTopoHandle);
   const TrackerTopology* const tTopo = tTopoHandle.product();
 
-
-//  std::cout << "I'm doing some junk" << std::endl;
+  //  edm::LogInfo("TrackCluster") << "I'm doing some junk" << std::endl;
  
   // Loop on tracks
   for(TrajTrackAssociationCollection::const_iterator it = trajTrackAssociationHandle->begin(); it!=trajTrackAssociationHandle->end(); ++it) {
@@ -364,11 +330,11 @@ TrackerCluster::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
     tree_track_phi   = itTrack->phi();
     tree_track_nhits = itTrack->hitPattern().numberOfValidHits();
     tree_track_NChi2 = itTrack->normalizedChi2();
-//    std::cout << "Found a track" << std::endl;
+    //    edm::LogInfo("TrackCluster") << "Found a track" << std::endl;
     
     // Loop on trajectory measurements
     for (itm=TMeas.begin();itm!=TMeas.end();itm++){
-//      std::cout << "Found a traj" << std::endl;
+      //      edm::LogInfo("TrackCluster") << "Found a traj" << std::endl;
       const TrackingRecHit* hit = &*(*itm).recHit();
       const DetId detid = hit->geographicalId();
       int subDet = detid.subdetId();
@@ -393,21 +359,22 @@ TrackerCluster::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 	tree_Cluster_WheelSide[tree_track_nclusters] = 0;
 	tree_Cluster_detID[tree_track_nclusters] = detid;
 	tree_Cluster_PetalSide[tree_track_nclusters] = 0;
-	
-      
+       
         tree_Cluster_LocalTracj_X[tree_track_nclusters] = tsos.localDirection().x();
         tree_Cluster_LocalTracj_Y[tree_track_nclusters] = tsos.localDirection().y();
         tree_Cluster_LocalTracj_Z[tree_track_nclusters] = tsos.localDirection().z();
 	
-	std::cout << "***************** " << std::endl;
-	std::cout << tsos.localDirection().x() << std::endl;
-	std::cout << tsos.localDirection().y() << std::endl;
-	std::cout << tsos.localDirection().z() << std::endl;
-	std::cout << tree_Cluster_LocalTracj_X[tree_track_nclusters] << std::endl;
-	std::cout << tree_Cluster_LocalTracj_Y[tree_track_nclusters] << std::endl;
-	std::cout << tree_Cluster_LocalTracj_Z[tree_track_nclusters] << std::endl;
-	
-	
+	edm::LogInfo("TrackCluster") << "***************** " << " "
+				     << tsos.localDirection().x() << " "
+				     << tsos.localDirection().y() << " "
+				     << tsos.localDirection().z() << " "
+				     << tree_Cluster_LocalTracj_X[tree_track_nclusters] << " "
+				     << tree_Cluster_LocalTracj_Y[tree_track_nclusters] << " "
+				     << tree_Cluster_LocalTracj_Z[tree_track_nclusters] << " " << std::endl;
+       
+	double cosine = tsos.localDirection().z()/tsos.localDirection().mag();
+	tree_Cluster_path[tree_track_nclusters]	= (10.0*thickness(detid))/fabs(cosine);
+
 	//determine subdte id
 	if(subDet == SiStripDetId::TIB){
 	  tree_Cluster_subDet[tree_track_nclusters] = 0;
@@ -428,15 +395,8 @@ TrackerCluster::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 	  tree_Cluster_LayerNbr[tree_track_nclusters] =tTopo->tecWheel(detid.rawId());
 	  if(tTopo->tecIsFrontPetal(detid.rawId()))  tree_Cluster_PetalSide[tree_track_nclusters] = 1;
 	  else                                       tree_Cluster_PetalSide[tree_track_nclusters] = -1;
-	  /*cout << "------------" << endl;
-	  cout << tree_Cluster_WheelSide[tree_track_nclusters] << endl;
-	  cout << tree_Cluster_LayerNbr[tree_track_nclusters] << endl;
-	  cout << tree_Cluster_PetalSide[tree_track_nclusters] << endl;*/
 	}
-	
-	
-        
-	
+
 	tree_Cluster_tsosx[tree_track_nclusters]        = tsos.localPosition().x();
         tree_Cluster_tsosy[tree_track_nclusters]        = tsos.localPosition().y();
         tree_Cluster_SoverN[tree_track_nclusters]       = clusterInfo.signalOverNoise();
@@ -472,7 +432,6 @@ TrackerCluster::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 	
 	tree_Strips_idFirst[tree_track_nclusters] = tree_Strips_nstrip;
 	
-	
 	for(unsigned int istrip=0; istrip < stripGains.size(); istrip++){
           tree_Strips_stripCharges[tree_Strips_nstrip]      = stripCharges[istrip];
 	  tree_Strips_stripGains[tree_Strips_nstrip]        = stripGains[istrip];
@@ -481,20 +440,43 @@ TrackerCluster::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 	  tree_Strips_nstrip++;
 	}
         tree_Strips_idLast[tree_track_nclusters] = tree_Strips_nstrip;
-	
-	
+		
         tree_track_nclusters++;
       }//end if cluster
      
     }//loop on clusters
      smalltree->Fill();
   }//end loop on tracks
-  
-  
 
 }
 
-
+// ------------ method to get the detector thickness ------------
+//****************************************************************/
+double 
+TrackerCluster::thickness(DetId id)
+//****************************************************************/
+{
+  std::map<DetId,double>::iterator th=m_thicknessMap.find(id);
+  if(th!=m_thicknessMap.end())
+    return (*th).second;
+  else {
+    double detThickness=1.;
+    //compute thickness normalization
+    const GeomDetUnit* it = theTrackerGeometry->idToDetUnit(DetId(id));
+    bool isPixel = dynamic_cast<const PixelGeomDetUnit*>(it)!=0;
+    bool isStrip = dynamic_cast<const StripGeomDetUnit*>(it)!=0;
+    if (!isPixel && ! isStrip) {
+      //FIXME throw exception
+      edm::LogWarning("DeDxHitsProducer") << "\t\t this detID doesn't seem to belong to the Tracker";
+      detThickness = 1.;
+    }else{
+      detThickness = it->surface().bounds().thickness();
+    }
+    
+    m_thicknessMap[id]=detThickness;//computed value
+    return detThickness;
+  }
+}
 
 
 // ------------ method called once each job just before starting event loop  ------------
